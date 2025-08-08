@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>KAWAI 連連看 - 線上對戰原型</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">KAWAI 連連看</div>
+      <div class="status">
+        <span id="timer">時間：--</span>
+        <span id="score">分數：0</span>
+        <span id="connection">未連線</span>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="left">
+        <div class="controls">
+          <input id="roomId" placeholder="輸入房號 (選填)" />
+          <button id="joinBtn">加入房間</button>
+          <button id="leaveBtn">離開房間</button>
+          <button id="listRoomsBtn">刷新房間</button>
+          <button id="restartBtn">重新開始</button>
+          <button id="hintBtn">提示</button>
+        </div>
+        <div class="subcontrols">
+          <label>模式：</label>
+          <select id="mode">
+            <option value="solo">單機</option>
+            <option value="vs">對戰</option>
+            <option value="coop">合作</option>
+          </select>
+        </div>
+        <div id="messages" class="messages"></div>
+        <div class="chat">
+          <input id="chatInput" placeholder="輸入訊息…" />
+          <button id="chatSend">送出</button>
+        </div>
+        <div class="board-tools">
+          <button id="interfereRow">加一排</button>
+          <button id="interfereShuffle">隨機重排</button>
+          <button id="interfereInvert">暫時反色</button>
+        </div>
+        <div class="board-tools">
+          <button id="leaderboardBtn">排行榜</button>
+        </div>
+        <div id="rooms" class="rooms"></div>
+      </section>
+      <section class="right">
+        <div id="game" class="game-wrap"></div>
+        <div id="blind" class="blind-overlay" style="display:none"></div>
+      </section>
+    </main>
+    <dialog id="scoreDialog">
+      <form method="dialog">
+        <p id="scoreSummary">你的分數：</p>
+        <input id="playerName" placeholder="玩家名稱" />
+        <menu>
+          <button value="cancel">取消</button>
+          <button id="submitScore" value="default">提交</button>
+        </menu>
+      </form>
+    </dialog>
+    <dialog id="leaderboardDialog">
+      <div style="min-width:320px">
+        <h3>排行榜</h3>
+        <ol id="leaderboardList"></ol>
+        <menu>
+          <button id="leaderboardClose">關閉</button>
+        </menu>
+      </div>
+    </dialog>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.min.js"></script>
+    <script src="/game.js"></script>
+  </body>
+  </html>
+
+
