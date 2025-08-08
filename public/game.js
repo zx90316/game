@@ -10,8 +10,26 @@
   const hintBtn = document.getElementById('hintBtn');
   const listRoomsBtn = document.getElementById('listRoomsBtn');
   const roomsEl = document.getElementById('rooms');
+  const roomsActionsEl = document.getElementById('roomsActions');
+  const rosterEl = document.getElementById('roster');
   const modeSel = document.getElementById('mode');
   const blindEl = document.getElementById('blind');
+  const createRoomId = document.getElementById('createRoomId');
+  const createRoomBtn = document.getElementById('createRoomBtn');
+  const searchRoomId = document.getElementById('searchRoomId');
+  const searchRoomBtn = document.getElementById('searchRoomBtn');
+  const coopProgressBar = document.getElementById('coopProgress');
+  const bigTimerEl = document.getElementById('bigTimer');
+  const playerNameInput2 = document.getElementById('playerNameInput');
+  const saveNameBtn = document.getElementById('saveNameBtn');
+  const serverShuffleBtn = document.getElementById('serverShuffleBtn');
+  const matchBtn = document.getElementById('matchBtn');
+  const reportNoMovesBtn = document.getElementById('reportNoMovesBtn');
+  const roomSortSel = document.getElementById('roomSort');
+  const roomSizeSel = document.getElementById('roomSize');
+  const prevPageBtn = document.getElementById('prevPage');
+  const nextPageBtn = document.getElementById('nextPage');
+  const pageInfo = document.getElementById('pageInfo');
   const chatInput = document.getElementById('chatInput');
   const chatSend = document.getElementById('chatSend');
   const btnRow = document.getElementById('interfereRow');
@@ -25,6 +43,8 @@
   const leaderboardDialog = document.getElementById('leaderboardDialog');
   const leaderboardList = document.getElementById('leaderboardList');
   const leaderboardClose = document.getElementById('leaderboardClose');
+  const volumeRange = document.getElementById('volumeRange');
+  const muteToggle = document.getElementById('muteToggle');
 
   function pushMsg(text) {
     const line = document.createElement('div');
@@ -37,6 +57,9 @@
     connEl.textContent = `已連線(${socket.id.slice(0, 5)})`;
     connEl.style.color = '#22c55e';
     pushMsg('系統：已連線到伺服器');
+    // 若已有本地名稱，連線時同步到伺服器
+    const saved = localStorage.getItem('playerName');
+    if (saved) socket.emit('setName', saved);
   });
   socket.on('disconnect', () => {
     connEl.textContent = '未連線';
@@ -53,7 +76,6 @@
   });
   socket.on('system', (text) => pushMsg(`系統：${text}`));
   socket.on('playerEvent', (evt) => {
-    pushMsg(`事件：${JSON.stringify(evt)}`);
     if (!evt || typeof evt !== 'object') return;
     if (evt.type === 'restart') {
       // 伺服器會另外下發 syncSeed，再由 syncSeed 開新局
@@ -93,18 +115,74 @@
     if (evt.type === 'interfere' && evt.kind === 'invert') {
       invertBoardTemp();
     }
+    if (evt.type === 'roomRoster' && Array.isArray(evt.list)) {
+      if (rosterEl) {
+        rosterEl.innerHTML = '';
+        // 第一位視為房主（由伺服器維護 hostId 並排序時可調整）
+        evt.list.forEach((u, idx) => {
+          const d = document.createElement('div');
+          const isSelf = u.id === socket.id;
+          d.textContent = `${u.name}`;
+          if (isSelf) d.classList.add('self-name');
+          if (idx === 0) {
+            const b = document.createElement('span');
+            b.className = 'host-badge';
+            b.textContent = '房主';
+            d.appendChild(b);
+          }
+          rosterEl.appendChild(d);
+        });
+      }
+      // 顯示到右側大字區
+      const hostId = evt.hostId;
+      const hostUser = evt.list.find(u => u.id === hostId) || evt.list[0];
+      const hostName = hostUser ? hostUser.name : '';
+      const bigHost = document.getElementById('bigHost');
+      if (bigHost) bigHost.textContent = hostName ? `房主：${hostName}` : '';
+    }
+    if (evt.type === 'modeChanged' && evt.mode && modeSel) {
+      modeSel.value = evt.mode;
+      updateScoreText();
+    }
   });
-  socket.on('syncSeed', ({ seed, config }) => {
+  socket.on('syncSeed', ({ seed, config, mode }) => {
     currentSeed = seed;
     setSeed(seed);
     toast('房間棋盤已同步');
+    if (mode && modeSel) {
+      modeSel.value = mode;
+      const bigMode = document.getElementById('bigMode');
+      if (bigMode) bigMode.textContent = `模式：${mode === 'vs' ? '對戰' : '合作'}`;
+    }
     startNewGame();
+  });
+  socket.on('playerEvent', (evt) => {
+    // ... existing code ...
+    if (evt && evt.type === 'roomRoster' && Array.isArray(evt.list)) {
+      // 顯示房內玩家名單
+      const names = evt.list.map(x => x.name).join(', ');
+      pushMsg(`玩家名單：${names}`);
+    }
+    if (evt && evt.type === 'shuffleSeed' && evt.seed) {
+      // 權威重排：重設 seed 並開新局
+      currentSeed = evt.seed;
+      setSeed(currentSeed);
+      toast('伺服器已重排棋盤');
+      startNewGame();
+    }
   });
 
   joinBtn.addEventListener('click', () => {
     const roomId = (roomInput.value || '').trim();
     if (!roomId) return toast('請輸入房號');
     socket.emit('joinRoom', roomId);
+  });
+  saveNameBtn?.addEventListener('click', () => {
+    const name = (playerNameInput2?.value || '').trim().slice(0, 20);
+    if (!name) return;
+    localStorage.setItem('playerName', name);
+    socket.emit('setName', name);
+    toast('名稱已更新');
   });
   leaveBtn.addEventListener('click', () => {
     const roomId = (roomInput.value || '').trim();
@@ -115,18 +193,87 @@
   });
 
   listRoomsBtn?.addEventListener('click', async () => {
+    await refreshRooms();
+  });
+
+  createRoomBtn?.addEventListener('click', () => {
+    const id = (createRoomId?.value || '').trim();
+    if (!id) return;
+    roomInput.value = id;
+    joinBtn.click();
+  });
+  searchRoomBtn?.addEventListener('click', async () => {
     try {
+      const id = (searchRoomId?.value || '').trim();
       const res = await fetch('/api/rooms');
       const data = await res.json();
+      const found = (data.rooms || []).find(r => r.roomId.includes(id));
       roomsEl.innerHTML = '';
-      (data.rooms || []).forEach(r => {
+      if (found) {
         const div = document.createElement('div');
-        div.textContent = `房號: ${r.roomId} ｜ 人數: ${r.size}`;
+        div.textContent = `找到房號: ${found.roomId} ｜ 人數: ${found.size} ｜ 模式: ${found.mode || 'solo'}`;
         roomsEl.appendChild(div);
+      } else {
+        roomsEl.textContent = '找不到相符房號';
+      }
+    } catch (e) {
+      toast('搜尋失敗', '#ef4444');
+    }
+  });
+
+  async function refreshRooms(page = 1) {
+    try {
+      const sort = roomSortSel?.value || 'players_desc';
+      const size = Number(roomSizeSel?.value || 20);
+      const res = await fetch(`/api/rooms?sort=${encodeURIComponent(sort)}&page=${page}&size=${size}`);
+      const data = await res.json();
+      roomsEl.innerHTML = '';
+      roomsActionsEl.innerHTML = '';
+      (data.rooms || []).forEach(r => {
+        const row = document.createElement('div');
+        row.className = `room-row ${r.mode || 'vs'}`;
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        meta.textContent = `房號: ${r.roomId} ｜ 人數: ${r.size}/${r.maxSize || ''} ｜ 模式: ${r.mode || 'vs'}`;
+        const btn = document.createElement('button');
+        btn.textContent = '加入';
+        btn.onclick = () => { roomInput.value = r.roomId; joinBtn.click(); };
+        row.appendChild(meta);
+        row.appendChild(btn);
+        roomsEl.appendChild(row);
       });
+      if (pageInfo) pageInfo.textContent = `第 ${data.page} / ${Math.max(1, Math.ceil((data.total||0)/(data.size||1)))} 頁`;
+      currentRoomsPage = data.page;
     } catch (e) {
       toast('取得房間列表失敗', '#ef4444');
     }
+  }
+  let currentRoomsPage = 1;
+  prevPageBtn?.addEventListener('click', async () => {
+    currentRoomsPage = Math.max(1, currentRoomsPage - 1);
+    await refreshRooms(currentRoomsPage);
+  });
+  nextPageBtn?.addEventListener('click', async () => {
+    currentRoomsPage += 1;
+    await refreshRooms(currentRoomsPage);
+  });
+  roomSortSel?.addEventListener('change', () => refreshRooms(currentRoomsPage));
+  roomSizeSel?.addEventListener('change', () => refreshRooms(1));
+
+  serverShuffleBtn?.addEventListener('click', () => {
+    if (!currentRoomId) return toast('請先加入房間', '#f59e0b');
+    socket.emit('requestShuffle', currentRoomId);
+  });
+  reportNoMovesBtn?.addEventListener('click', () => {
+    if (!currentRoomId) return toast('請先加入房間', '#f59e0b');
+    socket.emit('reportNoMoves', currentRoomId);
+  });
+  matchBtn?.addEventListener('click', () => {
+    socket.emit('findMatch');
+  });
+  socket.on('matchFound', (roomId) => {
+    roomInput.value = roomId;
+    joinBtn.click();
   });
 
   chatSend?.addEventListener('click', () => {
@@ -140,6 +287,51 @@
   chatInput?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') chatSend?.click();
   });
+
+  // --- 音效管理 (WebAudio) ---
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  const audioCtx = AudioCtx ? new AudioCtx() : null;
+  function getGain() {
+    if (!volumeRange) return 0.7;
+    return Math.max(0, Math.min(1, Number(volumeRange.value || 0.7)));
+  }
+  function playTone(freq = 440, durationMs = 120, type = 'sine', gain = 0.05) {
+    if (!audioCtx) return;
+    if (muteToggle?.checked) return;
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    g.gain.value = gain * getGain();
+    osc.connect(g).connect(audioCtx.destination);
+    osc.start();
+    setTimeout(() => { osc.stop(); osc.disconnect(); g.disconnect(); }, durationMs);
+  }
+  const sfx = {
+    // 多聲部：疊加和弦與琶音，營造 Candy Crush 風格
+    match: () => {
+      const root = 660; // E5 近似
+      const third = root * Math.pow(2, 4/12); // G#
+      const fifth = root * Math.pow(2, 7/12); // B
+      playTone(root, 70, 'sine', 0.06);
+      setTimeout(()=>playTone(third, 70, 'sine', 0.05), 10);
+      setTimeout(()=>playTone(fifth, 90, 'triangle', 0.05), 20);
+    },
+    interfere: () => {
+      playTone(240, 140, 'square', 0.05);
+      setTimeout(()=>playTone(200, 160, 'square', 0.04), 100);
+    },
+    win: () => {
+      const seq = [523, 659, 784, 988, 1175, 1319]; // 階梯上行
+      seq.forEach((f,i)=> setTimeout(()=>{
+        playTone(f, 120, 'sine', 0.06);
+        setTimeout(()=>playTone(f*Math.pow(2, 7/12), 100, 'triangle', 0.04), 20); // 疊五度
+      }, i*140));
+    },
+    lose: () => { [220,196,174].forEach((f,i)=> setTimeout(()=>playTone(f,200,'sawtooth',0.05), i*180)); },
+    countdown: () => playTone(1000, 40, 'triangle', 0.04),
+    shuffle: () => { [400,300,250].forEach((f,i)=> setTimeout(()=>playTone(f,70,'triangle',0.04), i*60)); },
+  };
 
   // --- UI helpers ---
   function toast(text, color = '#22c55e') {
@@ -177,6 +369,21 @@
     const m = Math.floor(remainingSec / 60).toString().padStart(2, '0');
     const s = (remainingSec % 60).toString().padStart(2, '0');
     timerEl.textContent = `時間：${m}:${s}`;
+    if (bigTimerEl && modeSel && modeSel.value === 'coop') {
+      bigTimerEl.textContent = `${m}:${s}`;
+    }
+    // 倒數最後 10 秒：發出滴答與視覺脈衝
+    if (hasTimerStarted && remainingSec > 0 && remainingSec <= 10) {
+      sfx.countdown?.();
+      const wrap = document.querySelector('.right');
+      if (wrap) {
+        wrap.classList.remove('pulse');
+        // 強制重觸發動畫
+        void wrap.offsetWidth;
+        wrap.classList.add('pulse');
+        setTimeout(()=>wrap.classList.remove('pulse'), 180);
+      }
+    }
   }
 
   function updateScoreText() {
@@ -407,6 +614,7 @@
   let tiles = null; // 2D array of { rect, label }
   let selected = null; // {x,y}
   let timerEvent = null;
+  let hasTimerStarted = false;
   let combo = 0;
   let comboTimeout = null;
   let comboBadge = null;
@@ -425,6 +633,18 @@
     rect.setStrokeStyle(2, 0x0ea5e9, 0.6);
     rect.setInteractive({ useHandCursor: true });
     rect.on('pointerdown', () => onTileClick(x, y));
+    // 手感：hover/press 輕微縮放與描邊變化
+    rect.on('pointerover', () => {
+      scene.tweens.add({ targets: rect, duration: 80, scaleX: 1.03, scaleY: 1.03 });
+      rect.setStrokeStyle(3, 0xfbbf24, 0.8);
+    });
+    rect.on('pointerout', () => {
+      scene.tweens.add({ targets: rect, duration: 80, scaleX: 1.0, scaleY: 1.0 });
+      rect.setStrokeStyle(2, 0x0ea5e9, 0.6);
+    });
+    rect.on('pointerdown', () => {
+      scene.tweens.add({ targets: rect, duration: 60, scaleX: 0.98, scaleY: 0.98, yoyo: true });
+    });
 
     const label = scene.add.text(rx, ry, emojiForValue(value), {
       fontFamily: 'system-ui, Segoe UI Emoji, Apple Color Emoji, Noto Color Emoji, sans-serif',
@@ -446,7 +666,8 @@
     remainingSec = DURATION_SEC;
     updateScoreText();
     updateTimerText();
-    if (timerEvent) timerEvent.remove(false);
+    if (timerEvent) { timerEvent.remove(false); timerEvent = null; }
+    hasTimerStarted = false;
     if (graphics) graphics.clear();
 
     board = makeBoard(COLS, ROWS, KINDS);
@@ -466,19 +687,7 @@
       }
     }
 
-    // 倒數計時
-    timerEvent = scene.time.addEvent({
-      delay: 1000,
-      loop: true,
-      callback: () => {
-        remainingSec -= 1;
-        updateTimerText();
-        if (remainingSec <= 0) {
-          timerEvent.remove(false);
-          gameOver(false);
-        }
-      },
-    });
+    // 計時將在首次成功消除時啟動
 
     // 初始化 Combo badge
     if (!comboBadge) {
@@ -493,6 +702,9 @@
     hintUsesRemaining = HINT_MAX;
     hintCooldownUntil = 0;
     updateHintUI();
+
+    // 啟動可配對呼吸光暈標記
+    updateBreathingHighlights();
   }
 
   function colorForValue(v) {
@@ -509,6 +721,8 @@
     if (!selected) {
       selected = { x, y };
       tiles[y][x].rect.setStrokeStyle(3, 0xfbbf24, 1);
+      // 輕微抖動強調
+      scene.tweens.add({ targets: tiles[y][x].rect, duration: 120, yoyo: true, repeat: 0, angle: { from: -2, to: 2 } });
       return;
     }
 
@@ -526,6 +740,7 @@
       tiles[a.y][a.x].rect.setStrokeStyle(2, 0x0ea5e9, 0.6);
       selected = { x, y };
       tiles[y][x].rect.setStrokeStyle(3, 0xfbbf24, 1);
+      scene.tweens.add({ targets: tiles[y][x].rect, duration: 120, yoyo: true, repeat: 0, angle: { from: -2, to: 2 } });
       return;
     }
 
@@ -557,16 +772,61 @@
     }
     graphics.strokePath();
     scene.time.delayedCall(180, () => graphics.clear());
+
+    // Phaser 粒子系統：沿路徑釋放殘影與光點
+    emitEmitterTrail(points);
+
+    // 配對音效（依 combo 提升音高 + 琶音收尾）
+    const base = 600;
+    const pitch = base + Math.min(6, combo) * 60;
+    if (sfx && sfx.match) { sfx.match(); }
+    if (audioCtx) {
+      playTone(pitch, 70, 'sine', 0.055);
+      setTimeout(()=>playTone(pitch*Math.pow(2,4/12), 60, 'triangle', 0.045), 60); // 琶音上行
+      setTimeout(()=>playTone(pitch*2, 80, 'sine', 0.05), 120); // 「叮」
+    }
+  }
+
+  function emitEmitterTrail(points) {
+    if (!scene || !points || points.length < 2) return;
+    const pts = points.map(p => ({ x: PADDING + p.x * TILE + TILE / 2, y: PADDING + p.y * TILE + TILE / 2 }));
+    const colors = [0xFBBF24, 0xF59E0B, 0xFFE08A, 0xFFFFFF];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const from = pts[i]; const to = pts[i + 1];
+      const dx = to.x - from.x; const dy = to.y - from.y;
+      const segLen = Math.hypot(dx, dy) || 1;
+      const ux = dx / segLen; const uy = dy / segLen;
+      const count = Math.max(8, Math.floor(segLen / 24));
+      for (let k = 0; k < count; k++) {
+        const t = Math.random();
+        const px = from.x + dx * t;
+        const py = from.y + dy * t;
+        const size = 2 + Math.random() * 4;
+        const rect = scene.add.rectangle(px, py, size, size, colors[(k + i) % colors.length], 1);
+        rect.setBlendMode('ADD');
+        const drift = (Math.random() - 0.5) * 12;
+        scene.tweens.add({
+          targets: rect,
+          x: px + ux * 18 + (-uy * drift),
+          y: py + uy * 18 + (ux * drift),
+          alpha: { from: 0.95, to: 0 },
+          scale: { from: 1, to: 0.2 },
+          duration: 180 + Math.random() * 220,
+          onComplete: () => rect.destroy(),
+        });
+      }
+    }
   }
 
   function removePair(x1, y1, x2, y2, awardScore = true) {
+    ensureTimerStarted();
     board[y1][x1] = 0;
     board[y2][x2] = 0;
     const t1 = tiles[y1][x1];
     const t2 = tiles[y2][x2];
     // 動畫隱藏矩形與 emoji
-    scene.tweens.add({ targets: [t1.rect, t1.label], alpha: 0, duration: 150, onComplete: () => { t1.rect.setVisible(false); t1.label.setVisible(false); } });
-    scene.tweens.add({ targets: [t2.rect, t2.label], alpha: 0, duration: 150, onComplete: () => { t2.rect.setVisible(false); t2.label.setVisible(false); } });
+    scene.tweens.add({ targets: [t1.rect, t1.label], alpha: 0, scaleX: 0.6, scaleY: 0.6, duration: 200, onComplete: () => { t1.rect.setVisible(false); t1.label.setVisible(false); } });
+    scene.tweens.add({ targets: [t2.rect, t2.label], alpha: 0, scaleX: 0.6, scaleY: 0.6, duration: 200, onComplete: () => { t2.rect.setVisible(false); t2.label.setVisible(false); } });
 
     t1.rect.disableInteractive();
     t2.rect.disableInteractive();
@@ -594,6 +854,8 @@
       shuffleSome();
       toast('無解，自動重排');
     }
+    if (modeSel && modeSel.value === 'coop') updateCoopProgress();
+    updateBreathingHighlights();
   }
 
   function onLocalPairMatched() {
@@ -663,6 +925,7 @@
         else tiles[y][x] = createTile(x, y, ((x + y) % KINDS) + 1), tiles[y][x].rect.setAlpha(0), tiles[y][x].label.setAlpha(0); // 佔位不可見
       }
     }
+    updateBreathingHighlights();
   }
 
   function shuffleSome() {
@@ -682,6 +945,7 @@
       t.label.setText(emojiForValue(board[y][x]));
       t.rect.fillColor = colorForValue(board[y][x]);
     }
+    updateBreathingHighlights();
   }
 
   function invertBoardTemp() {
@@ -691,8 +955,20 @@
     setTimeout(() => wrap.classList.remove('invert-filter'), 1500);
   }
 
+  // 合作模式進度條（已清空比例與時間進度綜合）
+  function updateCoopProgress() {
+    if (!coopProgressBar) return;
+    const total = COLS * ROWS;
+    let left = 0;
+    for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) if (board[y][x] !== 0) left++;
+    const clearedRatio = (total - left) / total; // 清空比例
+    const timeRatio = Math.max(0, Math.min(1, 1 - (remainingSec / DURATION_SEC)));
+    const mix = Math.floor((clearedRatio * 0.8 + timeRatio * 0.2) * 100);
+    coopProgressBar.style.width = `${mix}%`;
+  }
+
   function gameOver(win) {
-    if (timerEvent) timerEvent.remove(false);
+    if (timerEvent) { timerEvent.remove(false); timerEvent = null; }
     toast(win ? '恭喜完成！' : '時間到，挑戰結束', win ? '#22c55e' : '#ef4444');
     if (inRoom && currentRoomId) {
       socket.emit('playerEvent', currentRoomId, { type: 'gameOver', win });
@@ -703,6 +979,110 @@
       const prev = localStorage.getItem('playerName') || '';
       if (playerNameInput) playerNameInput.value = prev;
       scoreDialog.showModal();
+    }
+    if (win) {
+      sfx.win();
+      phaserConfetti();
+    } else {
+      sfx.lose();
+    }
+  }
+
+  function ensureParticleTexture(key = 'p1', size = 6) {
+    if (scene.textures.exists(key)) return key;
+    const g = scene.add.graphics();
+    g.fillStyle(0xffffff, 1);
+    g.fillRect(0, 0, size, size);
+    g.generateTexture(key, size, size);
+    g.destroy();
+    return key;
+  }
+
+  function phaserConfetti() {
+    const colors = [0xf87171,0x34d399,0x60a5fa,0xfbbf24,0xa78bfa,0x22d3ee];
+    const pieces = 120;
+    for (let i = 0; i < pieces; i++) {
+      const x = Math.random() * BOARD_W;
+      const y = -20 - Math.random() * 60;
+      const w = 4 + Math.random() * 6;
+      const h = 8 + Math.random() * 10;
+      const c = colors[i % colors.length];
+      const r = scene.add.rectangle(x, y, w, h, c, 1);
+      r.setOrigin(0.5);
+      const driftX = (Math.random() - 0.5) * 80;
+      const rot = (Math.random() * 360) * (Math.random() < 0.5 ? -1 : 1);
+      scene.tweens.add({
+        targets: r,
+        x: x + driftX,
+        y: BOARD_H + 60,
+        angle: rot,
+        alpha: { from: 1, to: 0 },
+        duration: 900 + Math.random() * 900,
+        ease: 'Quad.easeIn',
+        onComplete: () => r.destroy(),
+      });
+    }
+  }
+
+  function ensureTimerStarted() {
+    if (hasTimerStarted || remainingSec <= 0) return;
+    hasTimerStarted = true;
+    timerEvent = scene.time.addEvent({
+      delay: 1000,
+      loop: true,
+      callback: () => {
+        remainingSec -= 1;
+        updateTimerText();
+        if (modeSel && modeSel.value === 'coop') updateCoopProgress();
+        if (remainingSec <= 0) {
+          timerEvent.remove(false);
+          timerEvent = null;
+          gameOver(false);
+        }
+      },
+    });
+  }
+
+  function updateBreathingHighlights() {
+    if (!scene) return;
+    // 計算每一格是否存在可連線的同值配對
+    const pairable = Array.from({ length: ROWS }, () => Array(COLS).fill(false));
+    const valueMap = new Map();
+    for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
+      const v = board[y][x];
+      if (v === 0) continue;
+      if (!valueMap.has(v)) valueMap.set(v, []);
+      valueMap.get(v).push({ x, y });
+    }
+    for (const [v, coords] of valueMap.entries()) {
+      for (let i = 0; i < coords.length; i++) {
+        const a = coords[i];
+        for (let j = i + 1; j < coords.length; j++) {
+          const b = coords[j];
+          const path = findPath(board, a.x, a.y, b.x, b.y);
+          if (path) {
+            pairable[a.y][a.x] = true;
+            pairable[b.y][b.x] = true;
+          }
+        }
+      }
+    }
+    // 套用/移除柔和外光暈（以 alpha/scale 輕微脈動模擬外光暈）
+    for (let y = 0; y < ROWS; y++) {
+      for (let x = 0; x < COLS; x++) {
+        const t = tiles[y][x]; if (!t) continue;
+        const need = pairable[y][x];
+        const current = t.rect.getData('breathTween');
+        if (need && !current) {
+          t.rect.setShadow = t.rect.setShadow || (()=>{}); // 占位（Phaser Rect 無陰影，使用 alpha+scale 模擬）
+          const tw = scene.tweens.add({ targets: t.rect, duration: 1200, yoyo: true, repeat: -1, scaleX: { from: 1, to: 1.02 }, scaleY: { from: 1, to: 1.02 }, alpha: { from: 1, to: 0.9 }, ease: 'Sine.easeInOut' });
+          t.rect.setData('breathTween', tw);
+        } else if (!need && current) {
+          current.remove();
+          t.rect.setData('breathTween', null);
+          scene.tweens.add({ targets: t.rect, duration: 100, scaleX: 1, scaleY: 1 });
+        }
+      }
     }
   }
 

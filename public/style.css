@@ -4,20 +4,47 @@ body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto 
 .brand { font-weight:700; letter-spacing: 0.5px; }
 .status span { margin-left: 12px; }
 .container { display:flex; padding: 16px; gap: 16px; }
-.left { width: 280px; }
+.left { width: 550px; }
 .right { flex: 1; display:flex; justify-content:center; }
+.right { position: relative; }
 .controls { display:flex; gap:8px; flex-wrap: wrap; margin-bottom: 12px; }
 .subcontrols { display:flex; align-items:center; gap:8px; margin-bottom: 12px; }
+.progress { height: 8px; background:#1f2937; border-radius:9999px; overflow:hidden; margin-top: 8px; }
+.progress > div { height: 100%; background:#22c55e; width: 0%; transition: width 200ms linear; }
 input { padding:8px; border-radius:8px; border:1px solid #334155; background:#0b1220; color:#e2e8f0; }
 button { padding:8px 12px; border-radius:8px; border:1px solid #334155; background:#1f2937; color:#e2e8f0; cursor:pointer; }
 button:hover { background:#374151; }
 .messages { height: 420px; overflow:auto; padding: 8px; border:1px solid #334155; border-radius:8px; background:#0b1220; }
+#roomsActions button { margin: 4px 0; }
 #game { border:1px solid #334155; border-radius: 12px; overflow:hidden; }
+.game-wrap canvas { background-image: radial-gradient( circle at 25% 25%, rgba(255,255,255,0.04), rgba(0,0,0,0) 60% ); }
+.tile-glow { box-shadow: 0 0 12px rgba(255,255,255,0.35), inset 0 0 8px rgba(255,255,255,0.15); }
+.breathing { animation: breathing 2.4s ease-in-out infinite; }
+@keyframes breathing { 0%{ transform: scale(1); } 50%{ transform: scale(1.03); } 100%{ transform: scale(1); } }
+.shake { animation: shake 240ms ease; }
+@keyframes shake { 10%, 90% { transform: translate(-1px, 0); } 20%, 80% { transform: translate(2px, 0);} 30%, 50%, 70% { transform: translate(-4px, 0);} 40%, 60% { transform: translate(4px, 0);} }
+.confetti { position:absolute; pointer-events:none; }
+.confetti { position:absolute; inset:0; overflow:hidden; pointer-events:none; }
+.confetti .piece { position:absolute; width:8px; height:12px; opacity:0.9; will-change: transform, opacity; }
+@keyframes confetti-fall { to { transform: translateY(120vh) rotate(720deg); opacity: 0; } }
+.pulse { animation: pulse 180ms ease; }
+@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
 .rooms { margin-top: 12px; font-size: 14px; opacity: 0.9; }
 .rooms div { padding: 4px 0; border-bottom: 1px dashed #334155; }
+#rooms .room-row { display:flex; align-items:center; justify-content:space-between; padding:6px 8px; border:1px solid #334155; border-radius:8px; margin-bottom:8px; }
+#rooms .room-row.vs { border-left: 4px solid #60a5fa; }
+#rooms .room-row.coop { border-left: 4px solid #22c55e; }
+#rooms .room-row .meta { opacity:0.9; }
+#rooms .room-row button { padding:4px 8px; }
+.self-name { color:#60a5fa; font-weight:800; border-left:3px solid #60a5fa; padding-left:6px; background: rgba(96,165,250,0.08); border-radius: 4px; }
 .game-wrap { position: relative; }
 .blind-overlay { position:absolute; inset:0; background: rgba(0,0,0,0.35); pointer-events: none; border-radius: 12px; opacity: 0; transition: opacity 160ms ease; }
 .combo-badge { position:absolute; top: 10px; left: 50%; transform: translateX(-50%); padding: 4px 10px; background:#f59e0b; color:#111827; border-radius:9999px; font-weight:800; letter-spacing:1px; display:none; }
+.big-timer { position:absolute; top: 16px; right: 16px; font-size: 28px; font-weight: 800; color: #e2e8f0; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+.big-mode { position:absolute; top: 16px; left: 16px; font-size: 16px; font-weight: 800; color:#22c55e; background: rgba(34,197,94,0.12); border:1px solid rgba(34,197,94,0.35); padding:4px 8px; border-radius:8px; }
+.big-host { position:absolute; top: 54px; left: 16px; font-size: 14px; font-weight: 700; color:#f59e0b; background: rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.35); padding:4px 8px; border-radius:8px; }
+.host-badge { display:inline-block; margin-left:6px; padding:2px 6px; background:#22c55e; color:#052e16; border-radius:9999px; font-size:12px; font-weight:700; }
+.host-badge::before { content: '👑'; margin-right: 4px; }
 .invert-filter { filter: invert(1) hue-rotate(180deg); transition: filter 120ms ease; }
 .chat { margin-top: 12px; display:flex; gap:6px; }
 .chat input { flex:1; }

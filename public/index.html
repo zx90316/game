@@ -29,12 +29,14 @@
         <div class="subcontrols">
           <label>模式：</label>
           <select id="mode">
-            <option value="solo">單機</option>
             <option value="vs">對戰</option>
             <option value="coop">合作</option>
           </select>
+          <input id="playerNameInput" placeholder="玩家名稱" style="flex:1" />
+          <button id="saveNameBtn">儲存名稱</button>
         </div>
         <div id="messages" class="messages"></div>
+        <div id="roster" class="rooms" style="margin-top:8px"></div>
         <div class="chat">
           <input id="chatInput" placeholder="輸入訊息…" />
           <button id="chatSend">送出</button>
@@ -46,12 +48,46 @@
         </div>
         <div class="board-tools">
           <button id="leaderboardBtn">排行榜</button>
+          <button id="serverShuffleBtn">請求重排</button>
+          <button id="matchBtn">快速匹配</button>
+          <button id="reportNoMovesBtn">上報無解（房主）</button>
+          <label style="margin-left:8px;">音量</label>
+          <input id="volumeRange" type="range" min="0" max="1" step="0.01" value="0.7" />
+          <label><input id="muteToggle" type="checkbox" /> 靜音</label>
         </div>
         <div id="rooms" class="rooms"></div>
+        <div class="subcontrols">
+          <label>排序：</label>
+          <select id="roomSort">
+            <option value="players_desc">人數由多到少</option>
+            <option value="players_asc">人數由少到多</option>
+            <option value="name_asc">名稱排序</option>
+          </select>
+          <label>每頁：</label>
+          <select id="roomSize">
+            <option>10</option>
+            <option selected>20</option>
+            <option>30</option>
+          </select>
+          <button id="prevPage">上一頁</button>
+          <span id="pageInfo"></span>
+          <button id="nextPage">下一頁</button>
+        </div>
+        <div id="roomsActions" class="rooms"></div>
+        <div class="subcontrols">
+          <input id="createRoomId" placeholder="建立房號" />
+          <button id="createRoomBtn">建立/加入</button>
+          <input id="searchRoomId" placeholder="搜尋房號" />
+          <button id="searchRoomBtn">搜尋</button>
+        </div>
       </section>
       <section class="right">
         <div id="game" class="game-wrap"></div>
         <div id="blind" class="blind-overlay" style="display:none"></div>
+        <div class="progress"><div id="coopProgress"></div></div>
+        <div id="bigTimer" class="big-timer"></div>
+        <div id="bigMode" class="big-mode"></div>
+        <div id="bigHost" class="big-host"></div>
       </section>
     </main>
     <dialog id="scoreDialog">
@@ -76,6 +112,17 @@
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.min.js"></script>
+    <script>
+      // 音效資源載入（placeholder，可替換為實際音檔路徑）
+      window.SFX_FILES = {
+        match: '/sfx/match.wav',
+        interfere: '/sfx/interfere.wav',
+        shuffle: '/sfx/shuffle.wav',
+        win: '/sfx/win.wav',
+        lose: '/sfx/lose.wav',
+        countdown: '/sfx/countdown.wav'
+      };
+    </script>
     <script src="/game.js"></script>
   </body>
   </html>
