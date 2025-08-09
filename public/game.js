@@ -32,8 +32,6 @@
   const pageInfo = document.getElementById('pageInfo');
   const chatInput = document.getElementById('chatInput');
   const chatSend = document.getElementById('chatSend');
-  const btnRow = document.getElementById('interfereRow');
-  const btnShuffle = document.getElementById('interfereShuffle');
   const btnInvert = document.getElementById('interfereInvert');
   const leaderboardBtn = document.getElementById('leaderboardBtn');
   const scoreDialog = document.getElementById('scoreDialog');
@@ -106,12 +104,7 @@
     if (evt.type === 'chat' && evt.text) {
       pushMsg(`對手：${evt.text}`);
     }
-    if (evt.type === 'interfere' && evt.kind === 'row') {
-      addRandomRow();
-    }
-    if (evt.type === 'interfere' && evt.kind === 'shuffle') {
-      shuffleSome();
-    }
+    // 取消加一排與隨機重排之干擾，避免造成無解
     if (evt.type === 'interfere' && evt.kind === 'invert') {
       invertBoardTemp();
     }
@@ -835,8 +828,16 @@
     t2.rect.setStrokeStyle(2, 0x0ea5e9, 0.0);
 
     if (selected) {
-      tiles[selected.y][selected.x].rect.setStrokeStyle(2, 0x0ea5e9, 0.6);
-      selected = null;
+      const selMatchesRemoved =
+        (selected.x === x1 && selected.y === y1) ||
+        (selected.x === x2 && selected.y === y2);
+      if (selMatchesRemoved) {
+        // 只有在所選卡被移除時才清除選取
+        selected = null;
+      } else {
+        // 保留選取高亮，讓玩家無須重新選取
+        // 不改變描邊，維持原有 3px 高亮
+      }
     }
 
     if (awardScore) {
@@ -1130,20 +1131,7 @@
   });
 
   // 干擾按鈕（本端測試或戰術用）
-  btnRow?.addEventListener('click', () => {
-    if (inRoom && currentRoomId && modeSel && modeSel.value === 'vs') {
-      socket.emit('playerEvent', currentRoomId, { type: 'interfere', kind: 'row' });
-    } else {
-      addRandomRow();
-    }
-  });
-  btnShuffle?.addEventListener('click', () => {
-    if (inRoom && currentRoomId && modeSel && modeSel.value === 'vs') {
-      socket.emit('playerEvent', currentRoomId, { type: 'interfere', kind: 'shuffle' });
-    } else {
-      shuffleSome();
-    }
-  });
+  // 移除「加一排」與「隨機重排」按鈕行為
   btnInvert?.addEventListener('click', () => {
     if (inRoom && currentRoomId && modeSel && modeSel.value === 'vs') {
       socket.emit('playerEvent', currentRoomId, { type: 'interfere', kind: 'invert' });
